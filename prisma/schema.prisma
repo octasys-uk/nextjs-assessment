@@ -1,0 +1,102 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects Project[]
+  sessions Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// BUG: Missing onDelete cascade - orphaned records
+// BUG: No indexes on foreign keys - slow queries
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user       User         @relation(fields: [userId], references: [id])
+  components Component[]
+  files      File[]
+  deployments Deployment[]
+}
+
+// BUG: Missing composite index for queries
+model Component {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  code      String   @db.Text
+  type      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  // BUG: Missing index on projectId, order
+}
+
+// BUG: File size not validated at DB level
+// BUG: No cleanup mechanism for orphaned files
+model File {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  path      String
+  size      Int
+  mimeType  String
+  url       String?
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id])
+}
+
+model Deployment {
+  id        String   @id @default(cuid())
+  projectId String
+  url       String
+  status    String   // 'pending' | 'building' | 'success' | 'failed'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+}
+
+// BUG: No TTL or cleanup for old generations
+// BUG: Missing index on userId for queries
+model AIGeneration {
+  id        String   @id @default(cuid())
+  userId    String
+  prompt    String   @db.Text
+  response  String   @db.Text
+  status    String   // 'pending' | 'processing' | 'completed' | 'failed'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
